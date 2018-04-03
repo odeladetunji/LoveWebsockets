@@ -65,19 +65,19 @@ var allowCrossDomain = function(req, res, next) {
     
      if('GET' == req.method){ 
          res.set({
-             'Access-Control-Allow-Origin': 'http://beloveddais.com'
+             'Access-Control-Allow-Origin': 'http://127.0.0.1:9000'
          });
      }
 
      if('POST' == req.method){ 
          res.set({
-             'Access-Control-Allow-Origin': 'http://beloveddais.com'
+             'Access-Control-Allow-Origin': 'http://127.0.0.1:9000'
          });
      }
       
      if('OPTIONS' == req.method){ 
          res.set({
-             'Access-Control-Allow-Origin': 'http://beloveddias.com',
+             'Access-Control-Allow-Origin': 'http://127.0.0.1:9000',
              'Access-Control-Allow-Methods': 'GET,PUT,POST,DELETE,PATCH,OPTIONS',
              'Access-Control-Allow-Headers': 'Content-Type, Authorization, Content-Length, X-Requested-With'
          });
@@ -132,7 +132,7 @@ app.get('*', function (req, res) {
 var connection = mysql.createConnection({
       host     : '127.0.0.1',
       user     : 'root',
-      password : 'root',
+      password : '',
       database : 'lovedaises'
   });
 
@@ -2689,7 +2689,7 @@ app.get('/homepageSearchQuery/:id', jsonParser, function(){
   
 });
 
-app.post('/homepageSearchQuery', /*cors(allowCrossDomain),*/ jsonParser, function(req, res){
+app.post('/homepageSearchQuery', /*cors(allowCrossDomain),*/jsonParser, function(req, res){
        var searchQuery = req.body.searchQuery;
        console.log(searchQuery + '  this is search query');
        var resultLength;
@@ -2705,8 +2705,11 @@ app.post('/homepageSearchQuery', /*cors(allowCrossDomain),*/ jsonParser, functio
             cursor.then(function(result){
                 if(result == 0){
                   res.send({'message': 'No Result Found!'});
+                  console.log("No result found .......");
                   return;
                 }else{
+                    console.log(hiddenFieldForm);
+                    console.log('thats hidden field form above');
                     if(hiddenFieldForm != ""){
                         res.send({'message': hiddenFieldForm, 'RenderSearchPage': 'RenderSearchPageUsingFirstServer!'});
                         return; 
@@ -2716,6 +2719,7 @@ app.post('/homepageSearchQuery', /*cors(allowCrossDomain),*/ jsonParser, functio
                 }
             }, function(error){
                  console.log(error);
+                 console.log("Error Function Ran  ...........");
             });
        });
        
@@ -2724,7 +2728,7 @@ app.post('/homepageSearchQuery', /*cors(allowCrossDomain),*/ jsonParser, functio
                 if(err)throw err;
                   console.log('gettingFoundResults was invoked!');
                   var cursor = db.collection('Daises').find({$text: {$search: searchQuery}}, {score: {$meta: "textScore"}}).sort({score:{$meta:"textScore"}});
-                     console.log(cursor.length)
+                     console.log(cursor.length + ' should show length');
                      console.log('getting cursor length');  
                   var loopingCounter = 0;
                   var onlineResult = [];
@@ -2738,7 +2742,9 @@ app.post('/homepageSearchQuery', /*cors(allowCrossDomain),*/ jsonParser, functio
                         var sql = 'Select OnlineStatus From onlineofflinestatustable WHERE Email = ?';
                         connection.query(sql, [email], function(error, results, fields){
                             if(error)throw error;
-                            returnedDaises.Email = results[0].OnlineStatus;
+                            returnedDaises.OnlineStatus = results[0].OnlineStatus;
+                            console.log(returnedDaises.OnlineStatus);
+                            console.log('checking for returnedDaises.Email here');
                             SortObjectAccordingToOnlineStatus(returnedDaises);
                         });
                   }
@@ -2788,12 +2794,14 @@ app.post('/homepageSearchQuery', /*cors(allowCrossDomain),*/ jsonParser, functio
 
                                                       if(onlineSecondCounter == Object.keys(returnedDaises).length){
                                                          onlineResult.push(foundResult);
+                                                         console.log(onlineResult);
+                                                         console.log('final result of onlineResult');
                                                       }
                                                 }
                                             }
 
                                             if(returnedDaises[x] == 'offline'){
-                                                 onlineCounter++;
+                                                 offlineCounter++;
                                                  foundResult = {};
                                                  var offlineSecondCounter = 0;
                                                   for(k in returnedDaises){
@@ -2834,6 +2842,9 @@ app.post('/homepageSearchQuery', /*cors(allowCrossDomain),*/ jsonParser, functio
 
                                                       if(offlineSecondCounter == Object.keys(returnedDaises).length){
                                                          offlineResult.push(foundResult);
+                                                         console.log('final Result of Offline Counter starts here');
+                                                         console.log(offlineResult);
+                                                         console.log('final Result of Offline Counter ends here');
                                                       }
                                                   }
                                             }
@@ -2843,8 +2854,12 @@ app.post('/homepageSearchQuery', /*cors(allowCrossDomain),*/ jsonParser, functio
                     var counterForDoc = 0;
                     cursor.forEach(function(doc, err){
                         counterForDoc++
-                        if(err) throw err;   
+                        if(err) throw err;
+                           console.log('Beginning of Returned Daises');
                            var returnedDaises = doc.Daises;
+                           console.log('End of Returned Daises');
+                           console.log(returnedDaises);
+                           console.log("checkAbove");
                            gettingOnlineStatusSQL(returnedDaises.Email, returnedDaises);
                            if(counterForDoc == resultLength){
                                    console.log('this was true');
@@ -2852,14 +2867,19 @@ app.post('/homepageSearchQuery', /*cors(allowCrossDomain),*/ jsonParser, functio
                                   //time in milisecond
                                     setTimeout(function(){
                                            if(onlineCounter >= 1 && offlineCounter >= 1){
+                                                   console.log('this is from firstSection');
                                                    res.send({'online': onlineResult, 'offline': offlineResult});
                                                    return;
                                            }
                                            if(onlineCounter >= 1 && offlineCounter == 0){
+                                                   console.log('this is from secondSection');
                                                    res.send({'online': onlineResult, 'offline': '', 'amount': resultLength});
+                                                   console.log(onlineResult);
+                                                   console.log(" Why the Empty Array");
                                                    return;
                                            }
                                            if(onlineCounter == 0 && offlineCounter >= 1){
+                                                   console.log('this is from thirdsection');
                                                    res.send({'online': '', 'offline': offlineResult, 'amount': resultLength});
                                                    return;
                                            }
@@ -3323,8 +3343,12 @@ app.post("/changepicture", /*cors(allowCrossDomain),*/ function(req, res){
           }
           //generating random numbers
         mongo.connect(url, function(err, db){
+            console.log("Application ran up to this point");
+            //this is probable returning a promise!
             var cursor = db.collection('daisesratings').find({'name': "Ratings of Daises"}).limit(1);
+                  console.log("Application ran up to this point1");
                   cursor.forEach(function(doc, err){
+                    console.log("Application ran up to this point2");
                     if(err) throw err;
                     console.log(doc.Rating);
                     doc.Rating.daisesNumber.push('vlllllllllllllll');
@@ -3332,6 +3356,19 @@ app.post("/changepicture", /*cors(allowCrossDomain),*/ function(req, res){
                   }, function(){
                     db.close();
                   });
+
+
+                 //cursor returns a promise!
+                 // this is according to the Current Version of MongoDB!
+
+                  /*cursor.then(function(result){
+                     console.log("Promise was called!");
+                     console.log(doc.Rating);
+                     doc.Rating.daisesNumber.push('vlllllllllllllll');
+                     console.log(doc.Rating);
+                  }, function(error){
+                      throw error;
+                  });*/
         });
 
         
@@ -3589,4 +3626,4 @@ app.post('/gettingFormerChat', /*cors(allowCrossDomain),*/ jsonParser, function(
 
 // listening on port 5000;
 
-server.listen(5000);
+server.listen(8000);
