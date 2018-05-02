@@ -82,7 +82,7 @@ var allowCrossDomain = function(req, res, next) {
              'Access-Control-Allow-Headers': 'Content-Type, Authorization, Content-Length, X-Requested-With'
          });
          
-         res.sendStatus(200); 
+        // res.sendStatus(200); 
      }
 
     next();
@@ -129,12 +129,23 @@ app.get('*', function (req, res) {
 
 
 //creating mysql connection!!!!
-var connection = mysql.createConnection({
+  var connection = mysql.createConnection({
       host     : '127.0.0.1',
       user     : 'root',
       password : '',
       database : 'lovedaises'
   });
+
+// creating connection pooling! 
+var pool  = mysql.createPool({
+    connectionLimit : 10,
+    host            : '127.0.0.1',
+    user            : 'root',
+    password        : '',
+    database        : 'lovedaises'
+});
+
+
 
 //Creating UniqueEmail object that will be populated by /Rating route;
 
@@ -232,33 +243,51 @@ app.post('/friendslist', /*allowCrossDomain,*/ jsonParser, function(req, res){
      //console.log(res);
      var email = req.body.personalEmail;
      console.log(email);
+     console.log('//////////////////////////////////////////////////');
      var arrayOfFriends = [];
       var sql = 'SELECT * FROM friendstable WHERE OwnerEmail = ?';
           connection.query(sql, [email], function (error, results, fields) {
              if(error) throw error;
                // we would have to loop through the result to get the fields
                console.log(results);
-               console.log('thats result above!!!');
+               console.log('thats result above!!!oooooooooooooooooooooooooo');
                var valueLength = results.length;
                var counter = 0;
                if(valueLength != 0){
                   console.log('this guy ran');
                    for(var i=0; i < results.length; i++){
-                        var friendDetails = results[i].FriendFirstName + " " + results[i].FriendLastName + " " + results[i].FriendEmail;
-                          arrayOfFriends.push(friendDetails);
                           counter++;
-                          if(results.length == counter)
-                            res.send({'arrayOfFriends': arrayOfFriends});
+                          if(results[i].FriendFirstName == ''){
+           
+                              if(results.length == counter){
+                                  if(arrayOfFriends.length == 0){
+                                        res.send({'message': "You Currently have No friends!!!"});
+                                  }else{
+                                        res.send({'arrayOfFriends': arrayOfFriends});
+                                  }
+                                  break;
+                              }
+                              continue;
+                          }
+
+                          var friendDetails = results[i].FriendFirstName + " " + results[i].FriendLastName + " " + results[i].FriendEmail;
+                          arrayOfFriends.push(friendDetails);
+                          if(results.length == counter){
+                              if(arrayOfFriends.length == 0){
+                                 res.send({'message': "You Currently have No friends!!!"});
+                              }else{
+                                 res.send({'arrayOfFriends': arrayOfFriends});
+                              }
+                          }
                    }
                }
 
                if(valueLength == 0){
-                    
                     res.send({'message': "You Currently have No friends!!!"});
                }
           });
  
-})
+});
 
 app.post('/ConfirmingFriendShip', /*cors(allowCrossDomain),*/ jsonParser, function(req, res){   
       var theIdentity = req.body.theIdentity;
@@ -266,18 +295,36 @@ app.post('/ConfirmingFriendShip', /*cors(allowCrossDomain),*/ jsonParser, functi
       var personalEmail = req.body.personalEmail;
       var tagValue = req.body.taggingselectDaises;
 
-      function updatingFunction(){
+      (function(){
            var sql = 'INSERT INTO friendstable SET Tag = ?, WHERE OwnerEmail = ? AND FriendEmail = ?';
            connection.query(sql, [tagValue, personalEmail, friendsEmail], function(error, results, fields){
                  if(error) throw error;
            });
-          
+      })();
+
+      function creatingCorrespondingFriendShip(firstName, lastName){
+           console.log('this function was called');
+           // Note the Invertion of OwnerEmail and FriendEmail. 
+           // This was done delibrately in other for friendship to be extablished for both parties!
+           var sql = 'INSERT INTO friendstable SET Tag = ?, OwnerEmail = ?, FriendEmail = ?, FriendFirstName = ?, FriendLastName = ?';
+           connection.query(sql, [tagValue, friendsEmail, personalEmail, firstName, lastName], function(error, results, fields){
+                 if(error) throw error;
+                 console('the Data was successfully inserted to the server!');
+           });
       }
 
-      updatingFunction();
+      
+      (function(){
+          var sql = 'select FirstName, LastName from registrationtable where Email = ?';
+          connection.query(sql, [friendsEmail], function(){
+              if (error) throw error;
+              creatingCorrespondingFriendShip(results[0].FirstName, results[0].LastName);
+          })
+      })();
 });
 
 app.post('/connectingWithpeople', /*cors(allowCrossDomain),*/ jsonParser, function(req, res){
+        console.log(req.body);
         var identityRecieved = req.body.postIdentity;
         var personalEmail = req.body.personalEmail;
         var FriendEmail = personalEmail;
@@ -354,6 +401,8 @@ app.post('/connectingWithpeople', /*cors(allowCrossDomain),*/ jsonParser, functi
                      var sql = 'SELECT Email From daisesposting Where DaisesIdentity = ?';
                      connection.query(sql, [identityRecieved], function(error, results, fields){
                           if(error)throw error;
+                           console.log(identityRecieved);
+                           console.log(results);
                            getOwnerEmail(results[0].Email);
                      });
           });
@@ -362,27 +411,15 @@ app.post('/connectingWithpeople', /*cors(allowCrossDomain),*/ jsonParser, functi
 
 app.post('/gettingRatingsOfClosePeople'/*, cors(allowCrossDomain)*/, jsonParser, function(req, res){
           console.log(req.body.sentData + "   this is body");
-             
-            /*req.on('socket', function (socket) {
-                myTimeout = 5000; // millis
-                socket.setTimeout(myTimeout);  
-                socket.on('timeout', function() {
-                    console.log("Timeout, aborting request")
-                    req.abort();
-                });
-          }).on('error', function(e) {
-                 console.log("Got error: " + e.message);
-                 // error callback will receive a "socket hang up" on timeout
-             });*/
-          
-
+          console.log('No this ran rather')            
+ 
              // declaration of variables
           var apple = 0, blackCurrant = 0, blueBerry = 0, blackBerry = 0, jujube = 0, lime = 0,jackfruit = 0, longan = 0, kolanut = 0, guava = 0,
                  breadfruit = 0, grape = 0, miracle = 0, huckleBerry = 0, counterloupe = 0, papaya = 0, lemon = 0, wulnut = 0, fig = 0, 
                   pomengranate = 0, orange = 0, cherry = 0, watermellon = 0, tangerine = 0, passionFruit = 0, starfruit = 0, coconut = 0, olive = 0, date = 0, 
-                   dragonFruit = 0, damsom = 0, mango = 0, avocado = 0, pineapple = 0, bitter = 0, peach = 0,lychee = 0, tamarind = 0, blackBerry = 0, banana = 0, durian = 0, cucumber = 0,
+                   dragonFruit = 0, damson = 0, mango = 0, avocado = 0, pineapple = 0, bitter = 0, peach = 0,lychee = 0, tamarind = 0, blackBerry = 0, banana = 0, durian = 0, cucumber = 0,
                     appleCounter = 0, bananaCounter = 0, cucumberCounter = 0, durianCounter = 0, dragonfruitCounter = 0, blackberryCounter = 0, 
-                     dateCounter = 0, loquat = 0,pear = 0, cashew = 0, wulnutCounter = 0, figCounter = 0, orangeCounter = 0, cherryCounter = 0, watermellonCounter = 0, pomengranateCounter = 0, 
+                     dateCounter = 0, loquat = 0,pear = 0, cashew = 0, walnut = 0, walnutCounter = 0, figCounter = 0, orangeCounter = 0, cherryCounter = 0, watermellonCounter = 0, pomengranateCounter = 0, 
                       coconutCounter = 0, guavaCounter = 0, oliveCounter = 0, lemonCounter = 0, tangerineCounter = 0, passionFruitCounter = 0, starfruitCounter = 0,
                        kiwiFruitCounter = 0, blackCurrantCounter = 0, jujubeCounter = 0, limeCounter = 0, grapeCounter = 0, miracleCounter = 0, huckleBerryCounter = 0, breadFruitCounter = 0, counterloupeCounter = 0, papayaCounter = 0,
                         pineappleCounter = 0, bitterCounter = 0, peachCounter = 0, lycheeCounter = 0, jackFruitCounter = 0,longanCounter = 0,kolanutCounter = 0, tamarindCounter = 0, blueBerryCounter = 0,
@@ -450,11 +487,13 @@ app.post('/gettingRatingsOfClosePeople'/*, cors(allowCrossDomain)*/, jsonParser,
                              var rateResultLength = Object.keys(rateResult).length;
                                 
                              if(rateResultLength == 0){
+                              console.log('this ==================  22');
                               res.send({'myName': 'No Rating Yet!!'});
                               console.log('No Rating Yet!!');
                               return;
                              }
-
+                             
+                             console.log('this ===================== 11');
                              res.send({'myName': rateResult});
                              console.log(rateResult);
                         }
@@ -786,9 +825,12 @@ app.post('/gettingRatingsOfClosePeople'/*, cors(allowCrossDomain)*/, jsonParser,
 
 
              function gettingPostersEmail(passedIdentity){
+                console.log(passedIdentity);
+                console.log('seeing it');
                 var sql = 'SELECT Email FROM daisesposting WHERE DaisesIdentity = ?';
                    connection.query(sql, [passedIdentity], function(error, results, fields){
                            if(error)throw error;
+                               console.log(results);
                                var postersEmail = results[0].Email;
                                gettingClosePeople(postersEmail, function(arrayOfClosePeople){
                                 console.log('this function ran');
@@ -833,432 +875,27 @@ app.post('/gettingRatingsOfClosePeople'/*, cors(allowCrossDomain)*/, jsonParser,
                cursor.forEach(function(doc, err){
                     if(err) throw err;   
                         checkIfRating = doc.Rating[req.body.sentData];
-                        if(Object.keys(checkIfRating).length == 0){
+                        console.log(checkIfRating);
+                        console.log('thats it aboveeeeeeeeeeeeeeeeeeeeeeeeee');
+                        console.log(Object.keys(checkIfRating).length);
+                        var thisLength = Object.keys(checkIfRating).length;
+
+                        if(thisLength == 0){
+                             // this is for empty object {}
                              res.send({'message': 'No Rating Yet!'});
-                             return;
+                             return;   
                         }
 
-                        /*function gettingClosePeople(postersEmail, callBack){
-                              var postersEmail = postersEmail;
-                              var tag = '';
-                              var sql = 'SELECT * FROM friendstable WHERE OwnerEmail = ? AND Tag IS NOT NULL';
-                              connection.query(sql, [postersEmail], function(error, results, fields){
-                                   if(error)throw error;
-                                     var arrayData = [];
-                                     var lengthCounter = 0;
-                                     var lengthCounter2 = 0;
-                                     var arrayOfClosePeople = [];
-                                     for(x in results){
-                                        lengthCounter++;
-                                        if(results[x].Tag == 'Friends'){
-                                            arrayData.push(results[x].FriendEmail);
-                                        }
-                                        if(results[x].Tag == 'Love'){
-                                            arrayData.push(results[x].FriendEmail);
-                                        }
-                                        if(results[x].Tag == 'Family'){
-                                            arrayData.push(results[x].FriendEmail);
-                                        }
-                                        if(results[x].Tag == 'Colleague'){
-                                            arrayData.push(results[x].FriendEmail);
-                                        }
-                                        if(results.length == lengthCounter){
-                                          for(var i=0; i < arrayData.length; i++){
-                                               lengthCounter2++;
-                                               arrayOfClosePeople.push(arrayData[i].split('.')[0]);
-                                               console.log(arrayOfClosePeople);
-                                               console.log('thats array of Close!!!!!!!!!!!');
-                                               if(arrayData.length == lengthCounter2){
-                                                   
-                                                   callBack(arrayOfClosePeople);
-                                               }
-                                          }
-                                        }
-
-                                     }
-                              });
+                        for(x in checkIfRating){
+                          console.log(x);
+                              if(x == ''){
+                                     console.log('this ==================   28');
+                                     res.send({'message': 'No Rating Yet!'});
+                                     return;   
+                              }             
                         }
+                        //console.log('finished looping Object');
                         
-                        function sendingRateResultToClient(rateResult){
-                             // console.log('the loop ran up to this level   BINGO...........');
-                             var rateResultLength = Object.keys(rateResult).length;
-                                
-                             if(rateResultLength == 0){
-                              res.send({'myName': 'No Rating Yet!!'});
-                              return;
-                             }
-
-                             res.send({'myName': rateResult});
-                        }
-
-                        function callingFunctionToGetRatings(arrayOfClosePeople){
-                    //console.log('???????????????????????????????////');
-                    console.log(peopleRatings);
-                             // console.log(peopleRatings);
-                              console.log('thats people ratings above.......................');
-                              var arrayOfKeys = Object.keys(peopleRatings);
-                              var iteratingCounter = 0;
-                              var finalCounter = 0;
-
-                        for(x in peopleRatings){
-                            //checkIfRating[x]      // returns an object
-                           var arrayOfKeys = Object.keys(peopleRatings[x]);   // returns an array of keys
-                               console.log(arrayOfKeys + "   this is the array of keys")
-                              for(i=0; i < arrayOfKeys.length; i++){
-                                 console.time('NAME......................................PPPP');
-                                     finalCounter++;
-                                    if(arrayOfKeys[i] == 'Apple')
-                                       { apple += peopleRatings[x].Apple; appleCounter += 1; 
-                                           var appleResult = apple / appleCounter;  // returns a number (percentage Average of ratings)
-                                                rateResult.appleResult = appleResult + " Apple(Love).jpg Love";
-                                       }
-                                     if(arrayOfKeys[i] == 'Banana')
-                                        { banana += peopleRatings[x].Banana; bananaCounter += 1; 
-                                          var bananaResult = banana / bananaCounter;
-                                               rateResult.bananaResult = bananaResult + " Banana(Creativity).jpg Creativity";
-                            
-                                        }
-                                      if(arrayOfKeys[i] == 'Durian')
-                                        { durian += peopleRatings[x].Durian; durianCounter += 1; 
-                                           var durianResult = durian / durianCounter;
-                                                rateResult.durianResult = durianResult + " Durian(Confidence).jpg Confidence";
-                              
-                                        }
-                                       if(arrayOfKeys[i] == 'Cucumber')
-                                        { cucumber += peopleRatings[x].Cucumber; cucumberCounter += 1; 
-                                            var cucumberResult = cucumber / cucumberCounter;
-                                                 rateResult.cucumberResult = cucumberResult + " Cucumber(Caring).jpg Caring";
-                               
-                                        }
-                                        if(arrayOfKeys[i] == 'Date')
-                                          { date += peopleRatings[x].Date; dateCounter += 1; 
-                                              var dateResult = date / dateCounter;
-                                                   rateResult.dateResult = dateResult + " Date(Consistency).jpg Consistency";
-                                
-                                          }
-                                         if(arrayOfKeys[i] == 'DragonFruit')
-                                          { dragonFruit += peopleRatings[x].DragonFruit; dragonfruitCounter += 1;
-                                             var dragonFruitResult = dragonFruit / dragonfruitCounter;
-                                                  rateResult.dragonFruitResult = dragonFruitResult + " DragonFruit(Knowledge).jpg Knowledge";
-                                     
-                                          }
-                                          if(arrayOfKeys[i] == 'BlackBerry')
-                                            { blackBerry += peopleRatings[x].BlackBerry; blackberryCounter += 1;
-                                                 var blackBerryResult = blackBerry / blackberryCounter;
-                                                      rateResult.blackBerryResult = blackBerryResult + " Blackberry(Experience).jpg Experience";
-                                   
-                                             }
-                                           if(arrayOfKeys[i] == 'Olive')
-                                             { olive += peopleRatings[x].Olive; oliveCounter += 1;
-                                                   var oliveResult = olive / oliveCounter;
-                                                        rateResult.oliveResult = oliveResult + " Olive(Faithfulness).jpg Faithfulness";
-                                        
-                                             }
-                                            if(arrayOfKeys[i] == 'Coconut')
-                                              { coconut += peopleRatings[x].Coconut; coconutCounter += 1;
-                                                    var coconutResult = coconut / coconutCounter;
-                                                         rateResult.coconutResult = coconutResult + " Coconut(intelligence).jpg Intelligence";
-                                          
-                                             }
-                                             if(arrayOfKeys[i] == 'Lemon')
-                                              { lemon += peopleRatings[x].Lemon; lemonCounter += 1; 
-                                                 var lemonResult = lemon / lemonCounter;
-                                                      rateResult.lemonResult = lemonResult + " Lemon(Thouroughness).jpg Thouroughness";
-                                            
-                                              }
-                                    if(arrayOfKeys[i] == 'Tangerine')
-                                      { tangerine += peopleRatings[x].Tangerine; tangerineCounter += 1; 
-                                          var tangerineResult = tangerine / tangerineCounter;
-                                                  rateResult.tangerineResult = tangerineResult + " Tangerine(Cooperation).jpg Cooperation";
-                                      }
-                                     if(arrayOfKeys[i] == 'PassionFruit')
-                                       { passionFruit += peopleRatings[x].PassionFruit; passionfruitCounter += 1; 
-                                         var passionFruitResult = passionFruit / passionfruitCounter;
-                                              rateResult.passionFruitResult = passionFruitResult + " Passionfruit(Passion).jpg Passion";
-                         
-                                       }
-                                      if(arrayOfKeys[i] == 'Starfruit')
-                                        { starfruit += peopleRatings[x].Starfruit; starfruitCounter += 1; 
-                                            var starfruitResult = starfruit / starfruitCounter;
-                                                 rateResult.starfruitResult = starfruitResult + " Starfruit(Leadership).jpg Leadership";
-                      
-                                        }
-                                       if(arrayOfKeys[i] == 'Walnut')
-                                        { walnut += peopleRatings[x].Wulnut; wulnutCounter += 1; 
-                                           var walnutResult = walnut / walnutCounter;
-                                                rateResult.walnutResult = walnutResult + " Wulnut(Humour).jpg Humour";
-                          
-                                        }
-                                        if(arrayOfKeys[i] == 'Fig')
-                                          { fig += peopleRatings[x].Fig; figCounter += 1; 
-                                              var figResult = fig / figCounter;
-                                                   rateResult.figResult = figResult + " Fig(Wisdom).jpg Wisdom";
-                           
-                                          }
-                                         if(arrayOfKeys[i] == 'Pomengranate')
-                                          { pomengranate += peopleRatings[x].Pomengranate; pomengranateCounter += 1; 
-                                              var pomengranateResult = pomengranate / pomengranateCounter;
-                                                   rateResult.pomengranateResult = pomengranateResult + " Pomengranate(Resourcefulness).jpg Resourcefulness";
-                              
-                                          }
-                                          if(arrayOfKeys[i] == 'Orange')
-                                            { orange += peopleRatings[x].Orange; orangeCounter += 1;
-                                                  var orangeResult = orange / orangeCounter;
-                                                       rateResult.orangeResult = orangeResult + " Orange(Insight).jpg Insight";
-                                             }
-                                           if(arrayOfKeys[i] == 'Cherry')
-                                            { cherry += peopleRatings[x].Cherry; cherryCounter += 1; 
-                                                 var cherryResult = cherry / cherryCounter;
-                                                      rateResult.cherryResult = cherryResult + " Cherry(Holiness).jpg Holiness";
-                                 
-                                            }
-                                            if(arrayOfKeys[i] == 'Watermellon')
-                                              { watermellon += peopleRatings[x].Watermellon; watermellonCounter += 1;
-                                                      var watermellonResult = watermellon / watermellonCounter;
-                                                            rateResult.watermellonResult = watermellonResult + " Watermelon(Generosity).jpg Generosiy";
-                                   
-                                               }
-                                             if(arrayOfKeys[i] == 'Guava')
-                                              { guava += peopleRatings[x].Guava; guavaCounter += 1; 
-                                                  var guavaResult = guava / guavaCounter;
-                                                       rateResult.guavaResult = guavaResult + " Guava(Sincerity).jpg Sincerity";
-                                     
-                                              }
-                                    if(arrayOfKeys[i] == 'KiwiFruit')
-                                      { kiwifruit += peopleRatings[x].KiwiFruit; kiwiFruitCounter += 1;
-                                         var kiwifruitResult = Kiwifruit / kiwiFruitCounter;
-                                              rateResult.kiwifruitResult = kiwifruitResult + " Kiwifruit(Kindness).jpg Kindness";
-                                       
-                                      }
-                                     if(arrayOfKeys[i] == 'BreadFruit')
-                                      { breadfruit += peopleRatings[x].BreadFruit; breadFruitCounter += 1;
-                                           var breadfruitResult = breadfruit / breadFruitCounter;
-                                                rateResult.breadfruitResult = breadfruit / breadFruitCounter + " Breadfruit(Expertise).jpg Expertise";
-                                          
-                                       }
-                                      if(arrayOfKeys[i] == 'Counterloupe')
-                                        { counterloupe += peopleRatings[x].Counterloupe; counterloupeCounter += 1; 
-                                            var counterloupeResult = counterloupe / counterloupeCounter;
-                                                 rateResult.counterloupeResult = counterloupeResult + " Cantaloupe(Humility).jpg Humility";
-                                            
-                                        }
-                                       if(arrayOfKeys[i] == 'Papaya')
-                                        { papaya += peopleRatings[x].Papaya; papayaCounter += 1;
-                                            var papayaResult = papaya / papayaCounter;
-                                                 rateResult.papayaResult = papayaResult + " Papaya(Openness).jpg Openness";
-                                             
-                                         }
-                                        if(arrayOfKeys[i] == 'Grape')
-                                          { grape += peopleRatings[x].Grape; grapeCounter += 1; 
-                                               var grapeResult = grape / grapeCounter;
-                                                    rateResult.grapeResult = grapeResult + " Grape(Innocence).jpg Innocence";
-                                             
-                                          }
-                                         if(arrayOfKeys[i] == 'Miracle')
-                                          { miracle += peopleRatings[x].Miracle; miracleCounter += 1; 
-                                               var miracleResult = miracle / miracleCounter;
-                                                    rateResult.miracleResult = miracleResult + " Miraclefruit(Helpfulness).jpg Helpfulness"; 
-                            
-                                          }
-                                          if(arrayOfKeys[i] == 'HuckleBerry')
-                                            { huckleBerry += peopleRatings[x].HuckleBerry; huckleBerryCounter += 1;
-                                                 var huckleBerryResult = huckleBerry / huckleBerryCounter;
-                                                       rateResult.huckleBerryResult = huckleBerryResult + " Huckleberry(Friendliness).jpg Huckleberry";
-                             
-                                            }
-                                           if(arrayOfKeys[i] == 'Pineapple')
-                                            { pineapple += peopleRatings[x].Pineapple; pineappleCounter += 1;
-                                                  var pineappleResult = pineapple / pineappleCounter;
-                                                        rateResult.pineappleResult = pineappleResult + " Pineapple(Patience).jpg Patience";
-                             
-                                             }
-                                            if(arrayOfKeys[i] == 'Tamarind')
-                                              { tamarind += peopleRatings[x].Tamarind; tamarindCounter += 1;
-                                                   var tamarindResult = tamarind / tamarindCounter;
-                                                         rateResult.tamarindResult = tamarindResult + " Tamarind(Trustworthiness).jpg Trustworthiness";
-                                
-                                               }
-                                             if(arrayOfKeys[i] == 'BlueBerry')
-                                              { blueBerry += peopleRatings[x].BlueBerry; blueBerryCounter += 1; 
-                                                  var blueBerryResult = blueBerry / blueBerryCounter;
-                                                        rateResult.blueBerryResult = blueBerryResult + " Blueberry(Empathy).jpg Empathy";
-                                  
-                                              }
-                                    if(arrayOfKeys[i] == 'BlackCurrant')
-                                      { blackCurrant += peopleRatings[x].BlackCurrant; blackCurrantCounter += 1;
-                                          var blackCurrantResult = blackCurrant / blackCurrantCounter;
-                                                rateResult.blackCurrantResult = blackCurrantResult + " Blackcurrant(Brilliance).jpg Brilliance";
-                                   
-                                       }
-                                     if(arrayOfKeys[i] == 'Jujube')
-                                       { jujube += peopleRatings[x].Jujube; jujubeCounter += 1; 
-                                            var jujubeResult = jujube / jujubeCounter;
-                                                  rateResult.jujubeResult = jujubeResult + " Jujube(Tolerance).jpg Tolorence";
-                                       
-                                       }
-                                      if(arrayOfKeys[i] == 'Lime')
-                                        { lime += peopleRatings[x].Lime; limeCounter += 1;
-                                            var limeResult = lime / limeCounter;
-                                                   rateResult.limeResult = limeResult + " Lime(Frankness).jpg Frankness";
-                                         
-                                        }
-                                       if(arrayOfKeys[i] == 'JackFruit')
-                                         { jackfruit += peopleRatings[x].JackFruit; jackFruitCounter += 1;
-                                              var jackfruitResult = jackfruit / jackFruitCounter;
-                                                    rateResult.jackfruitResult = jackfruitResult + " Jackfruit(Capacity).jpg Capacity";
-                                         
-                                         }
-                                        if(arrayOfKeys[i] == 'Longan')
-                                          { longan += peopleRatings[x].Longan; longanCounter += 1;
-                                              var longanResult = longan / longanCounter;
-                                                    rateResult.longanResult = longanResult + " Longan(Emotional Intelligence).jpg Emotional Intelligence";
-                                           
-                                          }
-                                         if(arrayOfKeys[i] == 'Kolanut')
-                                          { kolanut += peopleRatings[x].Kolanut; kolanutCounter += 1; 
-                                              var kolanutResult = kolanut / kolanutCounter;
-                                                    rateResult.kolanutResult = kolanutResult + " Kolanut(Courtesy).jpg Courtesy";
-                                             
-                                          }
-                                          if(arrayOfKeys[i] == 'Bitter')
-                                            { bitter += peopleRatings[x].Bitter; bitterCounter += 1; 
-                                                var bitterResult = bitter / bitterCounter;
-                                                      rateResult.bitterResult = bitterResult + " Bitter Kola(Honour).jpg Honour";
-                                                 
-                                            }
-                                           if(arrayOfKeys[i] == 'Peach')
-                                               { peach += peopleRatings[x].Peach; peachCounter += 1;
-                                                   var peachResult = peach / peachCounter;
-                                                        rateResult.peachResult = peachResult + " Peach(Excellence).jpg Excellence";
-                     
-                                                }
-                                            if(arrayOfKeys[i] == 'Lychee')
-                                              { lychee += peopleRatings[x].Lychee; lycheeCounter += 1; 
-                                                    var lycheeResult = lychee / lycheeCounter;
-                                                          rateResult.lycheeResult = lycheeResult + " Lychee(Loyalty).jpg Loyalty";
-                        
-                                              }
-                                             if(arrayOfKeys[i] == 'Damson')
-                                              { damson += peopleRatings[x].Damson; damsonCounter += 1; 
-                                                   var damsonResult = damson / damsonCounter;
-                                                         rateResult.damsonResult = damsonResult + " Damson(Honesty).jpg Honesty";
-                          
-                                              }
-                                if(arrayOfKeys[i] == 'Cashew')
-                                  { cashew += peopleRatings[x].Cashew; cashewCounter += 1; 
-                                      var cashewResult = cashew / cashewCounter;
-                                           rateResult.cashewResult = cashewResult + " Cashew(Optimism).jpg Optimism";
-                         
-                                  }
-                                 if(arrayOfKeys[i] == 'Mango')
-                                   { mango += peopleRatings[x].Mango; mangoCounter += 1; 
-                                        var mangoResult = mango / mangoCounter;
-                                              rateResult.mangoResult = mangoResult + " Mango(Fairness).jpg Fairness";
-                          
-                                   }
-                                  if(arrayOfKeys[i] == 'Avocado')
-                                    { avocado += peopleRatings[x].Avocado; avocadoCounter += 1;
-                                        var avocadoResult = avocado / avocadoCounter;
-                                              rateResult.avocadoResult = avocadoResult + " Avocado(Compassion).jpg Compassion";
-                                    }
-                                   if(arrayOfKeys[i] == 'Pear')
-                                    { pear += peopleRatings[x].Pear; pearCounter += 1;
-                                        var pearResult = pear / pearCounter;
-                                              rateResult.pearResult = pearResult + " Pear(Grace).jpg Grace";
-                            
-                                     }
-                                    if(arrayOfKeys[i] == 'Loquat')
-                                      { loquat += peopleRatings[x].Loquat; loquatCounter += 1;
-                                             var loquatResult = loquat / loquatCounter;  
-                                                   rateResult.loquatResult =loquatResult + " Loquat(Reliability).jpg Reliability";  
-
-                                      }
-                                       console.timeEnd('NAME......................................PPPP');
-                                 // console.log(rateResult);
-                                 // console.log('thats rateResult Value!!!!');
-                              }
-                          
-                        }
-                        
-                       // console.log(loopingtime + '    thats looping time...................../////')
-                        if((loopingtime = 'circle completed!!!')){
-                             setTimeout(function(){
-                                         console.log(rateResult);
-                                         //console.log(loopingtime);
-                                         sendingRateResultToClient(rateResult);
-                                         console.log('FINAL RateResult  ............................');
-                                    }, 0010);
-                        }
-
-                    };
-
-                        function firstloopfunction(loopingtime, loopingValue, arrayOfClosePeople, userRating){
-                 // console.log(loopingtime);
-                 // console.log('something is wrong somewhere!!!!!!!!!!!!!!!!!!!!!!!!');
-              
-                  for(var i=0; i <= arrayOfClosePeople.length; i++){
-                          console.time('BEGINS......................................PPPP');
-                           if(loopingValue == arrayOfClosePeople[i]){
-                              peopleRatings[loopingValue] = userRating;
-                               console.log(peopleRatings);
-                               console.log('thats it above,,,,');
-                           }
-                          console.timeEnd('BEGINS......................................PPPP');
-                  }
-                   
-                   //console.log(peopleRatings);
-                  if(loopingtime == 'circle completed!!!'){
-                      setTimeout(function(){
-                           ///console.log(peopleRatings);
-                           //console.log('popopoppopooiiiiiiiiiiiiiiiiuuuuuuuuuu');
-                           callingFunctionToGetRatings(arrayOfClosePeople);
-                      }, 0010);
-                  }
-                        }
-
-
-                        function gettingPostersEmail(passedIdentity){
-                var sql = 'SELECT Email FROM daisesposting WHERE DaisesIdentity = ?';
-                   connection.query(sql, [passedIdentity], function(error, results, fields){
-                           if(error)throw error;
-                               var postersEmail = results[0].Email;
-                               gettingClosePeople(postersEmail, function(arrayOfClosePeople){
-                                console.log('this function ran');
-                                  if(Object.keys(checkIfRating).length != 0){
-                                    //console.log(checkIfRating);
-                                         function callingSetTimeFunction(loopingtime, loopingValue, arrayOfClosePeople, userRating){ // called at the last loop
-                                               setTimeout(function(){
-                                                  loopingtime = 'circle completed!!!';
-                                                  firstloopfunction(loopingtime, loopingValue, arrayOfClosePeople, userRating);
-                                               }, 0010);
-                                         }
-
-                                         var gettingArrayLength = Object.keys(checkIfRating).length;
-                                         console.log(checkIfRating);
-                                         console.log('people');
-                                          for(x in checkIfRating){
-                                               var userRating = checkIfRating[x];
-                                               var loopingValue = x;
-                                               firstCounter++;
-                                               loopingtime = 'not finished looping';
-
-                                               if(firstCounter == gettingArrayLength){
-                                                  loopingtime = 'finished looping';
-                                                  console.log('something is not right2');
-                                                  callingSetTimeFunction(loopingtime, loopingValue, arrayOfClosePeople, userRating);
-                                                  return;
-                                               }
-
-                                               firstloopfunction(loopingtime, loopingValue, arrayOfClosePeople, userRating);
-                                               
-                                          }
-
-                                          
-                                  }  
-                              });
-                   });          
-                        }*/
-
                         var passedIdentity = req.body.sentData;
                         gettingPostersEmail(passedIdentity);
                 }, function(){
@@ -1271,13 +908,13 @@ app.post('/gettingRatingsOfClosePeople'/*, cors(allowCrossDomain)*/, jsonParser,
 
 app.post('/gettingRating', /*cors(allowCrossDomain),*/ jsonParser, function(req, res){
              console.log(req.body.sentData + "   this is body");
-            
+            console.log('this is the function that ran');
              var apple = 0, blueBerry = 0, blackCurrant = 0, kiwifruit = 0, blackBerry = 0, jujube = 0, lime = 0,jackfruit = 0, longan = 0, kolanut = 0, guava = 0,
                  breadfruit = 0, grape = 0, miracle = 0, huckleBerry = 0, counterloupe = 0, papaya = 0, lemon = 0, wulnut = 0, fig = 0, 
                   pomengranate = 0, orange = 0, cherry = 0, watermellon = 0, tangerine = 0, passionFruit = 0, starfruit = 0, coconut = 0, olive = 0, date = 0, 
-                   dragonFruit = 0, damsom = 0, mango = 0, avocado = 0, pineapple = 0, bitter = 0, peach = 0,lychee = 0, tamarind = 0, blackBerry = 0, banana = 0, durian = 0, cucumber = 0,
+                   dragonFruit = 0, damson = 0, mango = 0, avocado = 0, pineapple = 0, bitter = 0, peach = 0,lychee = 0, tamarind = 0, blackBerry = 0, banana = 0, durian = 0, cucumber = 0,
                     appleCounter = 0, bananaCounter = 0, cucumberCounter = 0, durianCounter = 0, dragonfruitCounter = 0, blackberryCounter = 0, 
-                     dateCounter = 0, loquat = 0,pear = 0, cashew = 0, wulnutCounter = 0, figCounter = 0, orangeCounter = 0, cherryCounter = 0, watermellonCounter = 0, pomengranateCounter = 0, 
+                     dateCounter = 0, loquat = 0,pear = 0, cashew = 0, walnut = 0, walnutCounter = 0, figCounter = 0, orangeCounter = 0, cherryCounter = 0, watermellonCounter = 0, pomengranateCounter = 0, 
                       coconutCounter = 0, guavaCounter = 0, oliveCounter = 0, lemonCounter = 0, tangerineCounter = 0, passionFruitCounter = 0, starfruitCounter = 0,
                        kiwiFruitCounter = 0, blackCurrantCounter = 0, jujubeCounter = 0, limeCounter = 0, grapeCounter = 0, miracleCounter = 0, huckleBerryCounter = 0, breadFruitCounter = 0, counterloupeCounter = 0, papayaCounter = 0,
                         pineappleCounter = 0, bitterCounter = 0, peachCounter = 0, lycheeCounter = 0, jackFruitCounter = 0,longanCounter = 0,kolanutCounter = 0, tamarindCounter = 0, blueBerryCounter = 0,
@@ -1296,6 +933,7 @@ app.post('/gettingRating', /*cors(allowCrossDomain),*/ jsonParser, function(req,
                         //do something!
                         {
                           for(x in checkIfRating){
+                            console.log('something is definitely wrong with this code here');
                             //checkIfRating[x]      // returns an object
                            var arrayOfKeys = Object.keys(checkIfRating[x]);   // returns an array of keys
                                console.log(arrayOfKeys + "   this is the array of keys")
@@ -1378,7 +1016,7 @@ app.post('/gettingRating', /*cors(allowCrossDomain),*/ jsonParser, function(req,
                       
                                         }
                                        if(arrayOfKeys[i] == 'Walnut')
-                                        { walnut += checkIfRating[x].Wulnut; wulnutCounter += 1; 
+                                        { walnut += checkIfRating[x].Walnut; walnutCounter += 1; 
                                            var walnutResult = walnut / walnutCounter;
                                                 rateResult.walnutResult = walnutResult + " Wulnut(Humour).jpg Humour";
                           
@@ -1573,16 +1211,14 @@ app.post('/gettingRating', /*cors(allowCrossDomain),*/ jsonParser, function(req,
                         }
                        
                           var rateResultLength = Object.keys(rateResult).length;
-                                 console.log(rateResultLength + "   this is rateResultLength");
-                                 console.log(rateResult);
                           if(rateResultLength == 0){
+                            console.log('this is running ===============  22');
                             res.send({'myName': 'No Rating Yet!!'});
-                            return;
+                          }else{
+                            console.log('this is running ==================  100');
+                            res.send({"myName": rateResult});
+                            console.log('It ran!')
                           }
-
-                          console.log(rateResult + "   this is rateResult")
-                          res.send({"myName": rateResult});
-                          console.log('It ran!')
                     }
                   
                   
@@ -1599,9 +1235,9 @@ app.post('/updateRatingFrontEnd', /*cors(allowCrossDomain),*/ jsonParser, functi
           var apple = 0, blackCurrant = 0, blueBerry = 0, blackBerry = 0, jujube = 0, lime = 0,jackfruit = 0, longan = 0, kolanut = 0, guava = 0,
                  breadfruit = 0, grape = 0, miracle = 0, huckleBerry = 0, counterloupe = 0, papaya = 0, lemon = 0, wulnut = 0, fig = 0, 
                   pomengranate = 0, orange = 0, cherry = 0, watermellon = 0, tangerine = 0, passionFruit = 0, starfruit = 0, coconut = 0, olive = 0, date = 0, 
-                   dragonFruit = 0, damsom = 0, mango = 0, avocado = 0, pineapple = 0, bitter = 0, peach = 0,lychee = 0, tamarind = 0, blackBerry = 0, banana = 0, durian = 0, cucumber = 0,
+                   dragonFruit = 0, damson = 0, mango = 0, avocado = 0, pineapple = 0, bitter = 0, peach = 0,lychee = 0, tamarind = 0, blackBerry = 0, banana = 0, durian = 0, cucumber = 0,
                     appleCounter = 0, bananaCounter = 0, cucumberCounter = 0, durianCounter = 0, dragonfruitCounter = 0, blackberryCounter = 0, 
-                     dateCounter = 0, loquat = 0,pear = 0, cashew = 0, wulnutCounter = 0, figCounter = 0, orangeCounter = 0, cherryCounter = 0, watermellonCounter = 0, pomengranateCounter = 0, 
+                     dateCounter = 0, loquat = 0,pear = 0, cashew = 0, walnut = 0, walnutCounter = 0, figCounter = 0, orangeCounter = 0, cherryCounter = 0, watermellonCounter = 0, pomengranateCounter = 0, 
                       coconutCounter = 0, guavaCounter = 0, oliveCounter = 0, lemonCounter = 0, tangerineCounter = 0, passionFruitCounter = 0, starfruitCounter = 0,
                        kiwiFruitCounter = 0, blackCurrantCounter = 0, jujubeCounter = 0, limeCounter = 0, grapeCounter = 0, miracleCounter = 0, huckleBerryCounter = 0, breadFruitCounter = 0, counterloupeCounter = 0, papayaCounter = 0,
                         pineappleCounter = 0, bitterCounter = 0, peachCounter = 0, lycheeCounter = 0, jackFruitCounter = 0,longanCounter = 0,kolanutCounter = 0, tamarindCounter = 0, blueBerryCounter = 0,
@@ -1690,6 +1326,7 @@ app.post('/updateRatingFrontEnd', /*cors(allowCrossDomain),*/ jsonParser, functi
                                   console.log(dataSum);
                                   if(rateResultCounter == keyLength){
                                        ratedAverage = dataSum / rateResultCounter;
+                                       console.log('was finna;;;;;;;;;;;;;;;;;;;;;;;;;;;;;')
                                        res.send({'message': ratedAverage, 'typeOfRater': 'close person'});
                                        updateDaisesPostingTable(ratedAverage);
                                   }
@@ -1790,7 +1427,7 @@ app.post('/updateRatingFrontEnd', /*cors(allowCrossDomain),*/ jsonParser, functi
                       
                                         }
                                        if(arrayOfKeys[i] == 'Walnut')
-                                        { walnut += peopleRatings[x].Wulnut; wulnutCounter += 1; 
+                                        { walnut += peopleRatings[x].Walnut; walnutCounter += 1; 
                                            var walnutResult = walnut / walnutCounter;
                                                 rateResult.walnutResult = walnutResult + " Wulnut(Humour).jpg Humour";
                           
@@ -2079,9 +1716,9 @@ app.post('/updateRatingFrontEnd', /*cors(allowCrossDomain),*/ jsonParser, functi
               var apple = 0, blueBerry = 0, blackCurrant = 0, kiwifruit = 0, blackBerry = 0, jujube = 0, lime = 0,jackfruit = 0, longan = 0, kolanut = 0, guava = 0,
                  breadfruit = 0, grape = 0, miracle = 0, huckleBerry = 0, counterloupe = 0, papaya = 0, lemon = 0, wulnut = 0, fig = 0, 
                   pomengranate = 0, orange = 0, cherry = 0, watermellon = 0, tangerine = 0, passionFruit = 0, starfruit = 0, coconut = 0, olive = 0, date = 0, 
-                   dragonFruit = 0, damsom = 0, mango = 0, avocado = 0, pineapple = 0, bitter = 0, peach = 0,lychee = 0, tamarind = 0, blackBerry = 0, banana = 0, durian = 0, cucumber = 0,
+                   dragonFruit = 0, damson = 0, mango = 0, avocado = 0, pineapple = 0, bitter = 0, peach = 0,lychee = 0, tamarind = 0, blackBerry = 0, banana = 0, durian = 0, cucumber = 0,
                     appleCounter = 0, bananaCounter = 0, cucumberCounter = 0, durianCounter = 0, dragonfruitCounter = 0, blackberryCounter = 0, 
-                     dateCounter = 0, loquat = 0,pear = 0, cashew = 0, wulnutCounter = 0, figCounter = 0, orangeCounter = 0, cherryCounter = 0, watermellonCounter = 0, pomengranateCounter = 0, 
+                     dateCounter = 0, loquat = 0,pear = 0, cashew = 0, walnut = 0, walnutCounter = 0, figCounter = 0, orangeCounter = 0, cherryCounter = 0, watermellonCounter = 0, pomengranateCounter = 0, 
                       coconutCounter = 0, guavaCounter = 0, oliveCounter = 0, lemonCounter = 0, tangerineCounter = 0, passionFruitCounter = 0, starfruitCounter = 0,
                        kiwiFruitCounter = 0, blackCurrantCounter = 0, jujubeCounter = 0, limeCounter = 0, grapeCounter = 0, miracleCounter = 0, huckleBerryCounter = 0, breadFruitCounter = 0, counterloupeCounter = 0, papayaCounter = 0,
                         pineappleCounter = 0, bitterCounter = 0, peachCounter = 0, lycheeCounter = 0, jackFruitCounter = 0,longanCounter = 0,kolanutCounter = 0, tamarindCounter = 0, blueBerryCounter = 0,
@@ -2183,7 +1820,7 @@ app.post('/updateRatingFrontEnd', /*cors(allowCrossDomain),*/ jsonParser, functi
                       
                                         }
                                        if(arrayOfKeys[i] == 'Walnut')
-                                        { walnut += checkIfRating[x].Wulnut; wulnutCounter += 1; 
+                                        { walnut += checkIfRating[x].Walnut; walnutCounter += 1; 
                                            var walnutResult = walnut / walnutCounter;
                                                 rateResult.walnutResult = walnutResult + " Wulnut(Humour).jpg Humour";
                           
@@ -2381,6 +2018,7 @@ app.post('/updateRatingFrontEnd', /*cors(allowCrossDomain),*/ jsonParser, functi
                                  console.log(rateResultLength + "   this is rateResultLength");
                                  console.log(rateResult);
                           if(rateResultLength == 0){
+                            console.log('uuuuuuuuuu8888888888888888888888888');
                             res.send({'message': 'No Rating Yet!!'});
                             return;
                           }
@@ -2420,21 +2058,35 @@ app.post('/updateRatingFrontEnd', /*cors(allowCrossDomain),*/ jsonParser, functi
        }
 
        var typeOfPerson;
-       function gettingTagValue(thePostersEmail){
+       function gettingTagValue(thePostersEmail){ 
+            console.log(thePostersEmail);
+            console.log(email);
+            console.log('thats the two value')
             var sql = 'Select Tag From friendstable Where FriendEmail = ? AND OwnerEmail = ?';
            connection.query(sql, [email, thePostersEmail], function(error, results, fields){
                  if(error)throw error;
-                 typeOfPerson = results[0].Tag;
+                 console.log(results)
+                 if(results.length == 0){
+                     // it means this guys dont have any relationship!
+                      getAllRatings();
+                      return;
+                 }else{
+                    typeOfPerson = results[0].Tag;
+                 }
 
                  if(typeOfPerson == 'Friend' || "Love" || 'Aquintance' || 'Family' || 'Colleague' || 'Owner'){
                      getAllFriendsRatings();
+                     return;
                  }else{
                      getAllRatings();
+                     return;
                  }
            });
        }
 
        var sql = 'SELECT Email From daisesposting Where DaisesIdentity = ?';
+       console.log(req.body.sentData);
+       console.log('thats sent data    its there')
        connection.query(sql, [req.body.sentData.split(' ')[1]], function(error, results, fields){
          if(error)throw error;
          gettingTagValue(results[0].Email);
@@ -2442,66 +2094,70 @@ app.post('/updateRatingFrontEnd', /*cors(allowCrossDomain),*/ jsonParser, functi
 });
 
 app.post('/rating', /*cors(allowCrossDomain),*/ jsonParser, function(req, res){
+                    console.log('/rating called!');
                     upload(req, res, function(err) {
-
-                      if(err) {
+                        if(err) {
                             return res.end("Error uploading file.");
                         }
-                       console.log(req.body.myEmailhidden + " thats the value of hidden email");
+                        console.log('/rating entered');
+                        console.log(req.body.myEmailhidden + " thats the value of hidden email");
                         var myEmailValue = req.body.myEmailhidden.split(' ')[0];
                         var uniqueNumber = req.body.myEmailhidden.split(' ')[1];
                         console.log(myEmailValue + '   this is emailValue ===========');
                         console.log(req.body);
-                       // console.log(uniqueEmail); 
-                       var uniqueEmail = {}
-      
-                    if(req.body.Apple > 1) uniqueEmail.Apple = req.body.Apple * 10;
-                      if(req.body.Banana > 1) uniqueEmail.Banana = req.body.Banana * 10;
-                       if(req.body.Durain > 1) uniqueEmail.Durian = req.body.Durian * 10;
-                         if(req.body.Cucumber > 1) uniqueEmail.Cucumber = req.body.Cucumber * 10;
-                          if(req.body.Date > 1) uniqueEmail.Date = req.body.Date * 10;
-                           if(req.body.DragonFruit > 1) uniqueEmail.DragonFruit = req.body.DragonFruit * 10;
-                            if(req.body.BlackBerry > 1) uniqueEmail.BlackBerry = req.body.BlackBerry * 10;
-                             if(req.body.Olive > 1) uniqueEmail.Olive = req.body.Olive * 10;
-                              if(req.body.Coconut > 1) uniqueEmail.Coconut = req.body.Coconut * 10;
-                       if(req.body.Lemon > 1) uniqueEmail.Lemon = req.body.Lemon * 10;
-                        if(req.body.Tangerine > 1) uniqueEmail.Tangerine = req.body.Tangerine * 10;
-                         if(req.body.PassionFruit > 1) uniqueEmail.PassionFruit = req.body.PassionFruit * 10;
-                          if(req.body.Walnut > 1) uniqueEmail.Walnut = req.body.Walnut * 10;
-                           if(req.body.Starfruit > 1) uniqueEmail.Starfruit = req.body.Starfruit * 10;
-                            if(req.body.Fig > 1) uniqueEmail.Fig = req.body.Fig * 10;
-                             if(req.body.Pomengranate > 1) uniqueEmail.Pomengranate = req.body.Pomengranate * 10;
-                              if(req.body.Orange > 1) uniqueEmail.Orange = req.body.Orange * 10;
-                               if(req.body.Cherry > 1) uniqueEmail.Cherry = req.body.Cherry * 10;
-                                if(req.body.Watermellon > 1) uniqueEmail.Watermellon = req.body.Watermellon * 10;
-                             if(req.body.Guava > 1) uniqueEmail.Guava = req.body.Guava * 10;
-                              if(req.body.KiwiFruit > 1) uniqueEmail.KiwiFruit = req.body.Kiwifruit * 10;
-                               if(req.body.Cantaloupe > 1) uniqueEmail.Cantaloupe = req.body.Cantaloupe * 10;
-                                if(req.body.BreadFruit > 1) uniqueEmail.BreadFruit = req.body.BreadFruit * 10;
-                                 if(req.body.Papaya > 1) uniqueEmail.Papaya = req.body.Papaya * 10;
-                                  if(req.body.Miracle > 1) uniqueEmail.Miracle = req.body.Miracle * 10;
-                                   if(req.body.HuckleBerry > 1) uniqueEmail.HuckleBerry = req.body.HuckleBerry * 10;
-                                    if(req.body.Pineapple > 1) uniqueEmail.Pineapple = req.body.Pineapple * 10;
-                                      if(req.body.Grape > 1) uniqueEmail.Grape = req.body.Grape * 10;
-                                  if(req.body.Tamarind > 1) uniqueEmail.Tamarind = req.body.Tamarind * 10;
-                                   if(req.body.BlueBerry > 1) uniqueEmail.BlueBerry = req.body.BlueBerry * 10;
-                                    if(req.body.BlackCurrant > 1) uniqueEmail.BlackCurrant = req.body.BlackCurrant * 10;
-                                     if(req.body.Jujube > 1) uniqueEmail.Jujube = req.body.Jujube * 10;
-                                      if(req.body.Lime > 1) uniqueEmail.Lime = req.body.Lime * 10;
+                        // console.log(uniqueEmail); 
+                        var uniqueEmail = {}
+                        console.log('uuuuuuuuuuuuuu');
+                        console.log(req.body);
+                        console.log('that is req.body above || write now am begining to feel that nothing was submitted');
+                    if(req.body.Apple > 1) uniqueEmail.Apple = req.body.Apple;
+                      if(req.body.Banana > 1) uniqueEmail.Banana = req.body.Banana;
+                       if(req.body.Durain > 1) uniqueEmail.Durian = req.body.Durian;
+                         if(req.body.Cucumber > 1) uniqueEmail.Cucumber = req.body.Cucumber;
+                          if(req.body.Date > 1) uniqueEmail.Date = req.body.Date;
+                           if(req.body.DragonFruit > 1) uniqueEmail.DragonFruit = req.body.DragonFruit;
+                            if(req.body.BlackBerry > 1) uniqueEmail.BlackBerry = req.body.BlackBerry;
+                             if(req.body.Olive > 1) uniqueEmail.Olive = req.body.Olive;
+                              if(req.body.Coconut > 1) uniqueEmail.Coconut = req.body.Coconut;
+                       if(req.body.Lemon > 1) uniqueEmail.Lemon = req.body.Lemon;
+                        if(req.body.Tangerine > 1) uniqueEmail.Tangerine = req.body.Tangerine;
+                         if(req.body.PassionFruit > 1) uniqueEmail.PassionFruit = req.body.PassionFruit;
+                          if(req.body.Walnut > 1) uniqueEmail.Walnut = req.body.Walnut;
+                           if(req.body.Starfruit > 1) uniqueEmail.Starfruit = req.body.Starfruit;
+                            if(req.body.Fig > 1) uniqueEmail.Fig = req.body.Fig;
+                             if(req.body.Pomengranate > 1) uniqueEmail.Pomengranate = req.body.Pomengranate;
+                              if(req.body.Orange > 1) uniqueEmail.Orange = req.body.Orange;
+                               if(req.body.Cherry > 1) uniqueEmail.Cherry = req.body.Cherry;
+                                if(req.body.Watermellon > 1) uniqueEmail.Watermellon = req.body.Watermellon;
+                             if(req.body.Guava > 1) uniqueEmail.Guava = req.body.Guava;
+                              if(req.body.KiwiFruit > 1) uniqueEmail.KiwiFruit = req.body.Kiwifruit;
+                               if(req.body.Cantaloupe > 1) uniqueEmail.Cantaloupe = req.body.Cantaloupe;
+                                if(req.body.BreadFruit > 1) uniqueEmail.BreadFruit = req.body.BreadFruit;
+                                 if(req.body.Papaya > 1) uniqueEmail.Papaya = req.body.Papaya;
+                                  if(req.body.Miracle > 1) uniqueEmail.Miracle = req.body.Miracle;
+                                   if(req.body.HuckleBerry > 1) uniqueEmail.HuckleBerry = req.body.HuckleBerry;
+                                    if(req.body.Pineapple > 1) uniqueEmail.Pineapple = req.body.Pineapple;
+                                      if(req.body.Grape > 1) uniqueEmail.Grape = req.body.Grape;
+                                  if(req.body.Tamarind > 1) uniqueEmail.Tamarind = req.body.Tamarind;
+                                   if(req.body.BlueBerry > 1) uniqueEmail.BlueBerry = req.body.BlueBerry;
+                                    if(req.body.BlackCurrant > 1) uniqueEmail.BlackCurrant = req.body.BlackCurrant;
+                                     if(req.body.Jujube > 1) uniqueEmail.Jujube = req.body.Jujube;
+                                      if(req.body.Lime > 1) uniqueEmail.Lime = req.body.Lime;
                                        
-                                   if(req.body.JackFruit > 1) uniqueEmail.JackFruit = req.body.JackFruit * 10;
-                                    if(req.body.Kolanut > 1) uniqueEmail.Kolonut = req.body.Kolanut * 10;
-                                     if(req.body.Longan > 1) uniqueEmail.Longan = req.body.Longan * 10;
-                                      if(req.body.Bitter > 1) uniqueEmail.Bitter = req.body.Bitter * 10;
-                                       if(req.body.Peach > 1) uniqueEmail.Peach = req.body.Peach * 10;
-                                        if(req.body.Lychee > 1) uniqueEmail.Lychee = req.body.Lychee * 10;
-                                         if(req.body.Damson > 1 ) uniqueEmail.Damson = req.body.Damson * 10;
-                                   if(req.body.Cashew > 1) uniqueEmail.Cashew = req.body.Cashew * 10;
-                                    if(req.body.Mango > 1) uniqueEmail.Mango = req.body.Mango * 10;
-                                     if(req.body.Avocado > 1) uniqueEmail.Avocado = req.body.Avocado * 10;
-                                      if(req.body.Pear > 1) uniqueEmail.Pear = req.body.Pear * 10;
-                                       if(req.body.Loquat > 1) uniqueEmail.Loquat = req.body.Loquat * 10;
-       
+                                   if(req.body.JackFruit > 1) uniqueEmail.JackFruit = req.body.JackFruit;
+                                    if(req.body.Kolanut > 1) uniqueEmail.Kolonut = req.body.Kolanut;
+                                     if(req.body.Longan > 1) uniqueEmail.Longan = req.body.Longan;
+                                      if(req.body.Bitter > 1) uniqueEmail.Bitter = req.body.Bitter;
+                                       if(req.body.Peach > 1) uniqueEmail.Peach = req.body.Peach;
+                                        if(req.body.Lychee > 1) uniqueEmail.Lychee = req.body.Lychee;
+                                         if(req.body.Damson > 1 ) uniqueEmail.Damson = req.body.Damson;
+                                   if(req.body.Cashew > 1) uniqueEmail.Cashew = req.body.Cashew;
+                                    if(req.body.Mango > 1) uniqueEmail.Mango = req.body.Mango;
+                                     if(req.body.Avocado > 1) uniqueEmail.Avocado = req.body.Avocado;
+                                      if(req.body.Pear > 1) uniqueEmail.Pear = req.body.Pear;
+                                       if(req.body.Loquat > 1) uniqueEmail.Loquat = req.body.Loquat;
+           console.log(uniqueEmail);
+           console.log('checking unique id .................')
            creatingUniqueRatingIdentity1(myEmailValue, uniqueNumber, uniqueEmail); //creating unique user ratings!
                        res.send({'myName': "Rating was successfull!"});
            });
@@ -2685,31 +2341,45 @@ app.get('/moreDaises', /*cors(allowCrossDomain),*/ jsonParser, function(req, res
         });
 });
 
-app.get('/homepageSearchQuery/:id', jsonParser, function(){
+/*app.get('/homepageSearchQuery/:id', jsonParser, function(){
   
-});
+});*/
 
 app.post('/homepageSearchQuery', /*cors(allowCrossDomain),*/jsonParser, function(req, res){
        var searchQuery = req.body.searchQuery;
        console.log(searchQuery + '  this is search query');
        var resultLength;
        var hiddenFieldForm = req.body.hiddenFieldForm;
+
+       
        // search mongoDB!
+       var onlinePresence;  // {'userEmail': 'offline'} thats the Schema for onlinePresence!
+       // offline is the default!
+       mongo.connect(url, function(err, db){
+              if(err)throw err;
+                var cursor = db.collection('OnlinePresence').find({$text: {$search: req.body.searchQuery}}, {score: {$meta: "textScore"}}).sort({score:{$meta:"textScore"}});
+                // dont forget that the cursor returns a promise!
+                // you will have to handle it with the then() function call which accept a CallBacks
+                //console.log(cursor);
+                cursor.then(function(result){
+                    onlinePresence = result;
+                }, function(error){
+                     console.log(error);
+                     console.log("Error Function Ran  ...........");
+              });
+       });
+
        mongo.connect(url, function(err, db){
           if(err)throw err;
-            console.log('was successfull....');
             var cursor = db.collection('Daises').find({$text: {$search: req.body.searchQuery}}, {score: {$meta: "textScore"}}).sort({score:{$meta:"textScore"}}).count();
             // dont forget that the cursor returns a promise!
             // you will have to handle it with the then() function call which accept a CallBacks
             //console.log(cursor);
             cursor.then(function(result){
                 if(result == 0){
-                  res.send({'message': 'No Result Found!'});
-                  console.log("No result found .......");
-                  return;
+                    res.send({'message': 'No Result Found!'});
+                    return;
                 }else{
-                    console.log(hiddenFieldForm);
-                    console.log('thats hidden field form above');
                     if(hiddenFieldForm != ""){
                         res.send({'message': hiddenFieldForm, 'RenderSearchPage': 'RenderSearchPageUsingFirstServer!'});
                         return; 
@@ -2723,13 +2393,13 @@ app.post('/homepageSearchQuery', /*cors(allowCrossDomain),*/jsonParser, function
             });
        });
        
+       // setting this two variables global
+       var neededEmail;
+       var returnedDaisesOutSide;
        function gettingFoundResults(){
              mongo.connect(url, function(err, db){
                 if(err)throw err;
-                  console.log('gettingFoundResults was invoked!');
                   var cursor = db.collection('Daises').find({$text: {$search: searchQuery}}, {score: {$meta: "textScore"}}).sort({score:{$meta:"textScore"}});
-                     console.log(cursor.length + ' should show length');
-                     console.log('getting cursor length');  
                   var loopingCounter = 0;
                   var onlineResult = [];
                   var offlineResult = [];
@@ -2738,14 +2408,26 @@ app.post('/homepageSearchQuery', /*cors(allowCrossDomain),*/jsonParser, function
                   var offlineCounter = 0;
                   var foundResult;
 
-                  function gettingOnlineStatusSQL(email, returnedDaises){
+                  function loopArrayStore(returnedDaises){
+                      for(var i=0; i < arrayStore.length; i++){
+                          // the speed of this loop will be too fast!
+                          // may have to provide an alternative solution!
+                          // may eventually use multithreading to solve this!
+                          gettingOnlineStatusSQL(returnedDaises);
+                      }
+                  }
+
+                  function gettingOnlineStatusSQL(returnedDaises){
                         var sql = 'Select OnlineStatus From onlineofflinestatustable WHERE Email = ?';
-                        connection.query(sql, [email], function(error, results, fields){
-                            if(error)throw error;
-                            returnedDaises.OnlineStatus = results[0].OnlineStatus;
-                            console.log(returnedDaises.OnlineStatus);
-                            console.log('checking for returnedDaises.Email here');
-                            SortObjectAccordingToOnlineStatus(returnedDaises);
+                        pool.query(sql, [neededEmail], function (error, results, fields) {
+                                // releasing connection before proceeding!
+                                if (error) throw error;
+                                returnedDaisesOutSide.OnlineStatus = results[0].OnlineStatus;
+                               // console.log(returnedDaisesOutSide);
+                                console.log(countingContainer);
+                                console.log('the counter')
+                                SortObjectAccordingToOnlineStatus(returnedDaisesOutSide);
+                                // Don't use the connection here, it has been returned to the pool.
                         });
                   }
 
@@ -2776,6 +2458,9 @@ app.post('/homepageSearchQuery', /*cors(allowCrossDomain),*/jsonParser, function
                                                       if(u == 'PostedVideo'){
                                                          foundResult.PostedVideo = returnedDaises[u];
                                                       }
+                                                      if(u == 'DaisesType'){
+                                                         foundResult.DaisesType = returnedDaises[u];
+                                                      }
                                                       if(u == 'Daises'){
                                                          foundResult.Daises = returnedDaises[u];
                                                       }
@@ -2794,8 +2479,6 @@ app.post('/homepageSearchQuery', /*cors(allowCrossDomain),*/jsonParser, function
 
                                                       if(onlineSecondCounter == Object.keys(returnedDaises).length){
                                                          onlineResult.push(foundResult);
-                                                         console.log(onlineResult);
-                                                         console.log('final result of onlineResult');
                                                       }
                                                 }
                                             }
@@ -2824,6 +2507,9 @@ app.post('/homepageSearchQuery', /*cors(allowCrossDomain),*/jsonParser, function
                                                       if(k == 'PostedVideo'){
                                                          foundResult.PostedVideo = returnedDaises[k];
                                                       }
+                                                      if(k == 'DaisesType'){
+                                                         foundResult.DaisesType = returnedDaises[k];
+                                                      }
                                                       if(k == 'Daises'){
                                                          foundResult.Daises = returnedDaises[k];
                                                       }
@@ -2842,29 +2528,32 @@ app.post('/homepageSearchQuery', /*cors(allowCrossDomain),*/jsonParser, function
 
                                                       if(offlineSecondCounter == Object.keys(returnedDaises).length){
                                                          offlineResult.push(foundResult);
-                                                         console.log('final Result of Offline Counter starts here');
-                                                         console.log(offlineResult);
-                                                         console.log('final Result of Offline Counter ends here');
                                                       }
                                                   }
                                             }
                                       }
                   }
-                               
+                    
+                    var arrayStore = [];           
                     var counterForDoc = 0;
+                    var countingContainer = 0;
                     cursor.forEach(function(doc, err){
                         counterForDoc++
                         if(err) throw err;
-                           console.log('Beginning of Returned Daises');
                            var returnedDaises = doc.Daises;
-                           console.log('End of Returned Daises');
-                           console.log(returnedDaises);
-                           console.log("checkAbove");
-                           gettingOnlineStatusSQL(returnedDaises.Email, returnedDaises);
+                           //console.log(returnedDaises);
+                           returnedDaisesOutSide = returnedDaises;
+                           arrayStore.push(returnedDaisesOutSide);
+                           neededEmail = returnedDaises.Email;
+                           //gettingOnlineStatusSQL(returnedDaises);
+                           //console.log(returnedDaisesOutSide)
+                           countingContainer++;
+                           //console.log(countingContainer);
                            if(counterForDoc == resultLength){
-                                   console.log('this was true');
-                                   console.log(resultLength);
                                   //time in milisecond
+                                    (function(returnedDaises){
+                                         loopArrayStore(returnedDaises);
+                                    })();
                                     setTimeout(function(){
                                            if(onlineCounter >= 1 && offlineCounter >= 1){
                                                    console.log('this is from firstSection');
@@ -2872,10 +2561,9 @@ app.post('/homepageSearchQuery', /*cors(allowCrossDomain),*/jsonParser, function
                                                    return;
                                            }
                                            if(onlineCounter >= 1 && offlineCounter == 0){
+                                                  // console.log(onlineResult);
                                                    console.log('this is from secondSection');
                                                    res.send({'online': onlineResult, 'offline': '', 'amount': resultLength});
-                                                   console.log(onlineResult);
-                                                   console.log(" Why the Empty Array");
                                                    return;
                                            }
                                            if(onlineCounter == 0 && offlineCounter >= 1){
@@ -2883,9 +2571,6 @@ app.post('/homepageSearchQuery', /*cors(allowCrossDomain),*/jsonParser, function
                                                    res.send({'online': '', 'offline': offlineResult, 'amount': resultLength});
                                                    return;
                                            }
-
-                                           console.log(foundResult + '  whats returning undefined');
-                                           console.log('that is found result');
                                     },50);
                            }
                     })
@@ -2938,7 +2623,7 @@ app.post('/liveSearch', /*cors(allowCrossDomain),*/ jsonParser, function(req, re
                         var sql = 'Select OnlineStatus From onlineofflinestatustable WHERE Email = ?';
                         connection.query(sql, [email], function(error, results, fields){
                             if(error)throw error;
-                            returnedDaises.Email = results[0].OnlineStatus;
+                            returnedDaises.OnlineStatus = results[0].OnlineStatus;
                             SortObjectAccordingToOnlineStatus(returnedDaises);
                         });
                   }
@@ -2970,6 +2655,9 @@ app.post('/liveSearch', /*cors(allowCrossDomain),*/ jsonParser, function(req, re
                                                       if(u == 'PostedVideo'){
                                                          foundResult.PostedVideo = returnedDaises[u];
                                                       }
+                                                      if(u == 'DaisesType'){
+                                                         foundResult.DaisesType = returnedDaises[u];
+                                                      }
                                                       if(u == 'Daises'){
                                                          foundResult.Daises = returnedDaises[u];
                                                       }
@@ -2993,7 +2681,7 @@ app.post('/liveSearch', /*cors(allowCrossDomain),*/ jsonParser, function(req, re
                                             }
 
                                             if(returnedDaises[x] == 'offline'){
-                                                 onlineCounter++;
+                                                 offlineCounter++;
                                                  foundResult = {};
                                                  var offlineSecondCounter = 0;
                                                   for(k in returnedDaises){
@@ -3015,6 +2703,9 @@ app.post('/liveSearch', /*cors(allowCrossDomain),*/ jsonParser, function(req, re
                                                       }
                                                       if(k == 'PostedVideo'){
                                                          foundResult.PostedVideo = returnedDaises[k];
+                                                      }
+                                                      if(k == 'DaisesType'){
+                                                         foundResult.DaisesType = returnedDaises[k];
                                                       }
                                                       if(k == 'Daises'){
                                                          foundResult.Daises = returnedDaises[k];
@@ -3118,7 +2809,7 @@ app.post('/liveSearch1', /*cors(allowCrossDomain),*/ jsonParser, function(req, r
                         var sql = 'Select OnlineStatus From onlineofflinestatustable WHERE Email = ?';
                         connection.query(sql, [email], function(error, results, fields){
                             if(error)throw error;
-                            returnedDaises.Email = results[0].OnlineStatus;
+                            returnedDaises.OnlineStatus = results[0].OnlineStatus;
                             SortObjectAccordingToOnlineStatus(returnedDaises);
                         });
                   }
@@ -3150,6 +2841,9 @@ app.post('/liveSearch1', /*cors(allowCrossDomain),*/ jsonParser, function(req, r
                                                       if(u == 'PostedVideo'){
                                                          foundResult.PostedVideo = returnedDaises[u];
                                                       }
+                                                      if(u == 'DaisesType'){
+                                                         foundResult.DaisesType = returnedDaises[u];
+                                                      }
                                                       if(u == 'Daises'){
                                                          foundResult.Daises = returnedDaises[u];
                                                       }
@@ -3173,7 +2867,7 @@ app.post('/liveSearch1', /*cors(allowCrossDomain),*/ jsonParser, function(req, r
                                             }
 
                                             if(returnedDaises[x] == 'offline'){
-                                                 onlineCounter++;
+                                                 offlineCounter++;
                                                  foundResult = {};
                                                  var offlineSecondCounter = 0;
                                                   for(k in returnedDaises){
@@ -3195,6 +2889,9 @@ app.post('/liveSearch1', /*cors(allowCrossDomain),*/ jsonParser, function(req, r
                                                       }
                                                       if(k == 'PostedVideo'){
                                                          foundResult.PostedVideo = returnedDaises[k];
+                                                      }
+                                                      if(k == 'DaisesType'){
+                                                         foundResult.DaisesType = returnedDaises[k];
                                                       }
                                                       if(k == 'Daises'){
                                                          foundResult.Daises = returnedDaises[k];
@@ -3276,7 +2973,7 @@ app.post("/changepicture", /*cors(allowCrossDomain),*/ function(req, res){
                         res.send(pictureName);
               });
               // res.send("Ajax call back successfull");
-});
+      });
 
                 /// mongoose for mongoDB
       var url = 'mongodb://127.0.0.1:27017/test';
@@ -3324,8 +3021,8 @@ app.post("/changepicture", /*cors(allowCrossDomain),*/ function(req, res){
           function creatingUniqueRatingIdentity1(myEmailValue, uniqueNumber, uniqueEmail){
                 var modifiedEmail = myEmailValue;
                var splited = modifiedEmail.split('.')[0];
-             
-                 mongo.connect(url, function(err, db){
+             console.log('this has been called 2222222222222211111111111111111');
+                 mongo.connect(url, function(err, db){ 
                    var cursor = db.collection('daisesratings').find({'name': "Ratings of Daises"}).limit(1);       
                   cursor.forEach(function(doc, err){
                     if(err) throw err;
@@ -3334,6 +3031,7 @@ app.post("/changepicture", /*cors(allowCrossDomain),*/ function(req, res){
                          var someUniqueId = doc.Rating[uniqueNumber]; // returns an object;
                          someUniqueId[splited] = uniqueEmail;
                        var updatedDoc = doc.Rating;
+                       console.log('this has been called 22222222222222');
                        db.collection('daisesratings').update({"name": "Ratings of Daises"}, {$set: {'Rating': updatedDoc}});     
                   }, function(){
                     db.close();
@@ -3452,9 +3150,7 @@ app.post('/daisesposting', /*cors(allowCrossDomain),*/ jsonParser, function(req,
               });              
             
         });
-                   
-                       
-                  
+                             
           //what the function insertingToDataBase is 
                      function insertingToDataBase(theRandomNumber){
 
